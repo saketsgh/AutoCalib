@@ -130,3 +130,9 @@ dmypy.json
 
 # files to ignore
 tp.py
+
+# folder
+results/
+
+# imgs
+*.png
