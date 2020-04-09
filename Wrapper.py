@@ -24,8 +24,8 @@ class CalibrateCamera:
         self.length = length
         self.rows = rows
         self.cols = cols
-        self.intrinsic_params = np.array((1, 7), dtype='float32')
-        self.extrinsic_params = np.array((None, 7), dtype='float32')
+        self.camera_matrix = np.array((3, 3), dtype='float32')
+        self.extrinsic_params = np.array((None, 6), dtype='float32')
 
 
     def get_params(self):
@@ -56,7 +56,8 @@ class CalibrateCamera:
             h_init.append(homography)
 
         # obtain the intrinsic camera parameters (alpha, beta, gamma, uc, vc)
-        self.intrinsic_params = calib_utils.get_camera_intrinsics(h_init)
+        self.camera_matrix = calib_utils.get_camera_matrix(h_init)
+        print(self.camera_matrix)
 
         # obtain the extrinsic parameters i.e. (px, py, pz, tx, ty, tz)
 

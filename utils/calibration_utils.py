@@ -10,8 +10,8 @@ class CalibUtils:
 
     def __init__(self):
         self.intrinsic_mat = np.zeros((3, 3)).astype(np.float32)
-        self.rotation_mat = np.zeros((None, 3, 3)).astype(np.float32)
-        self.translation_vec = np.zeros((None, 3, 1)).astype(np.float32)
+        # self.extrinsic_mat_all = np.zeros((None, 3, 4)).astype(np.float32)
+
 
     def get_corner_pts(self, calib_images, grid_size):
 
@@ -89,7 +89,8 @@ class CalibUtils:
 
         return v_pq
 
-    def get_camera_intrinsics(self, h_init):
+
+    def compute_intrinsic_params(self, h_init):
 
         v_mat = []
         for h in h_init:
@@ -108,28 +109,56 @@ class CalibUtils:
         b = vt[-1]
 
         # obtain the intric parameters
-        w = (b[0]*b[2]*b[5]) - (b[1]*b[1]*b[5]) - (b[0]*b[4]*b[4])
-            + (2*b[1]*b[3]*b[4]) - (b[2]*b[3]*b[3])
+        w = (b[0]*b[2]*b[5]) - (b[1]*b[1]*b[5]) - (b[0]*b[4]*b[4]) + (2*b[1]*b[3]*b[4]) - (b[2]*b[3]*b[3])
         d = (b[0]*b[2]) - (b[1]*b[1])
 
         alpha = np.sqrt(w/(d*b[0]))
-        beta = np.sqrt(w/(d*d*b[0]))
+        beta = np.sqrt((w/d**2)*b[0])
         gamma = (np.sqrt(w/(d*d*b[0])))*b[1]
         uc = ((b[1]*b[4]) - (b[2]*b[3]))/d
         vc = ((b[1]*b[3]) - (b[0]*b[4]))/d
 
         # calculating intrinsic camera matrix or A matrix
-        self.intrinsic_mat = np.array([[alpha, gamma, uc], [0, beta, vc], [0, 0, 1]])
+        self.intrinsic_mat = np.array([[alpha, -1*gamma, uc], [0, beta, vc], [0, 0, 1]])
 
-        # calculating extrinsic matrix
+
+
+    def compute_extrinsic_params(self, h_init):
+
+        # calculating extrinsic parameters
         a_inv = np.linalg.pinv(self.intrinsic_mat)
+        extrinsic_mat_all = []
+
         for h in h_init:
+
             lambda_ = 1/np.linalg.norm(np.dot(a_inv, h[:, 0]))
             r0 = lambda_*np.dot(a_inv, h[:, 0])
             r1 = lambda_*np.dot(a_inv, h[:, 1])
+            r2 = np.cross(r0, r1)
+
+            r0 = r0.reshape((3, 1))
+            r1 = r1.reshape((3, 1))
+            r2 = r2.reshape((3, 1))
+
+            q = np.hstack((r0, r1))
+            q = np.hstack((q, r2))
+
+            # obtain the best r matrix from q matrix
+            u, s, vt = np.linalg.svd(q)
+            r = np.dot(u, vt)
+
+            # obtain translation
             t = lambda_*np.dot(a_inv, h[:, 2])
-        self.rotation_mat
-        return alpha, beta, gamma, uc, vc
+            t = t.reshape((3, 1))
+
+            extrinsic_mat = np.hstack((r, t))
+            extrinsic_mat_all.append(extrinsic_mat)
+
+        # self.extrinsic_mat_all = np.array(extrinsic_mat_all)
 
 
-    def
+
+    def get_camera_matrix(self, h_init):
+        self.compute_intrinsic_params(h_init)
+        self.compute_extrinsic_params(h_init)
+        return self.intrinsic_mat
