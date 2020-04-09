@@ -12,8 +12,8 @@ import cv2
 import argparse
 import math
 import glob
-from utils.calib_params import *
-from utils.img_utils import ImgUtils
+from utils.calibration_utils import CalibUtils
+from utils.image_utils import ImgUtils
 import scipy.optimize as opt
 
 
@@ -24,36 +24,45 @@ class CalibrateCamera:
         self.length = length
         self.rows = rows
         self.cols = cols
-        self.camera_params = np.array((None, 7), dtype='float32')
+        self.intrinsic_params = np.array((1, 7), dtype='float32')
         self.extrinsic_params = np.array((None, 7), dtype='float32')
 
+
     def get_params(self):
-        return self.camera_params, self.extrinsic_params
+        return self.intrinsic_params, self.extrinsic_params
+
 
     def initial_params_est(self):
 
-        image_utils = ImgUtils()
+        img_utils = ImgUtils()
+        calib_utils = CalibUtils()
 
-        # define world coordinates of target image
-        target_pts = np.array([[1, 1], [4, 1], [4, 4], [1, 4]]).astype(np.float32)
-        # scale them and get homogenuous versions
-        target_pts *= self.length
-        target_pts = image_utils.get_homogenuous(target_pts)
+        ### define world coordinates of target image and scale them
+        world_coord = np.array([[1, 6], [1, 1], [6, 6], [6, 1]]).astype(np.float32)
+        world_coord *= self.length
 
-        # get the calibration images
-        calib_images = image_utils.get_images(self.path)
-        # image_utils.show_image(calib_images[0], "haha")
+        ### get the calibration images
+        calib_images = img_utils.get_images(self.path)
+        # img_utils.show_image(calib_images[0], "haha")
 
-        # find corners
-        gray = cv2.cvtColor(calib_images[0], cv2.COLOR_BGR2GRAY)
-        ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
-        if(ret==True):
-            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-            corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
-            img = cv2.drawChessboardCorners(calib_images[0], (7,6), corners2,ret)
-            image_utils.show_image(img, "corners", save=True)
+        ### find corners for all the input images
+        grid_size = (self.rows-1, self.cols-1)
+        corners_all_imgs = calib_utils.get_corner_pts(calib_images, grid_size)
+
+        # for each img obtain homography and store them
+        h_init = []
+        for img, corners in zip(calib_images, corners_all_imgs):
+            homography = calib_utils.get_homography(img, corners, world_coord)
+            h_init.append(homography)
+
+        # obtain the intrinsic camera parameters (alpha, beta, gamma, uc, vc)
+        self.intrinsic_params = calib_utils.get_camera_intrinsics(h_init)
+
+        # obtain the extrinsic parameters i.e. (px, py, pz, tx, ty, tz)
 
     # def rectify_params(self):
+
+
 
 def main():
 
@@ -74,6 +83,8 @@ def main():
 
     # calc the initial parameters
     calibrate.initial_params_est()
+
+
 
 if __name__ == '__main__':
     main()
