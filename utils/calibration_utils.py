@@ -7,28 +7,24 @@ img_utils = ImgUtils()
 
 class CalibUtils:
 
-    def __init__(self):
-        self.intrinsic_mat = np.zeros((3, 3)).astype(np.float32)
-        self.h_init = None
-
-
     def get_corner_pts(self, calib_images, grid_size):
 
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         corners_all_imgs = []
+
         if not os.path.exists("results/"):
             os.makedirs("results/")
 
         for i, img in enumerate(calib_images):
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            ret, corners = cv2.findChessboardCorners(gray, grid_size, None)
+            ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
 
             if(ret==True):
                 corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
                 corners2 = corners2.reshape((corners.shape[0], -1))
                 # uncomment to get results
                 '''img = plot_points(self, img, corners2, color=(255, 0, 0))
-                cv2.imwrite("results/corners_img_"+str(i)+".png", img)'''
+                cv2.imwrite("results/world_points/corners_img_"+str(i)+".png", img)'''
                 corners_all_imgs.append(corners2)
 
         return corners_all_imgs
@@ -42,8 +38,8 @@ class CalibUtils:
         # choosing four points for finding homography
         img_coord.append(img_corners[0])
         img_coord.append(img_corners[5])
-        img_coord.append(img_corners[30])
-        img_coord.append(img_corners[35])
+        img_coord.append(img_corners[45])
+        img_coord.append(img_corners[50])
 
         img_coord = np.array(img_coord, np.float32)
 
@@ -91,10 +87,9 @@ class CalibUtils:
         return v_pq
 
 
-    def get_camera_matrix(self, h_init):
+    def compute_intrinsic_params(self, h_init):
 
         v_mat = []
-        self.h_init = h_init
 
         for h in h_init:
             v01_h = self.v_pq_h(h, 0, 1)
@@ -122,16 +117,15 @@ class CalibUtils:
         vc = ((b[1]*b[3]) - (b[0]*b[4]))/d
 
         # calculating intrinsic camera matrix or A matrix
-        self.intrinsic_mat = np.array([[alpha, -1*gamma, uc], [0, beta, vc], [0, 0, 1]])
+        intrinsic_mat = np.array([[alpha, -1*gamma, uc], [0, beta, vc], [0, 0, 1]])
 
-        return self.intrinsic_mat
+        return intrinsic_mat
 
 
-    def compute_extrinsic_params(self):
+    def compute_extrinsic_params(self, intrinsic_mat, h_init):
 
         # calculating extrinsic parameters
-        h_init = self.h_init
-        a_inv = np.linalg.pinv(self.intrinsic_mat)
+        a_inv = np.linalg.pinv(intrinsic_mat)
         extrinsic_mat_all = []
 
         for h in h_init:
@@ -162,10 +156,15 @@ class CalibUtils:
         return extrinsic_mat_all
 
 
-    def get_projected_img_coord(self, world_coord):
+    def get_all_parameters(self, h_init):
 
-        # obtain the extrinsic parameters first
-        extrinsic_mat_all = self.compute_extrinsic_params()
+        intrinsic_mat = self.compute_intrinsic_params(h_init)
+        extrinsic_mat_all = self.compute_extrinsic_params(intrinsic_mat, h_init)
+
+        return intrinsic_mat, extrinsic_mat_all
+
+
+    def get_projected_img_coord(self, world_coord, intrinsic_mat, extrinsic_mat):
 
         # convert the world coord to 3D homogenuous with Z=0
         zeros = np.zeros((world_coord.shape[0], 1))
@@ -173,10 +172,28 @@ class CalibUtils:
         world_coord = img_utils.get_homogenuous(world_coord)
 
         # compute projected image coord
-        projected_img_coord = []
+        normalised_img_coord = np.dot(extrinsic_mat, world_coord.T)
+        projected_img_coord = np.dot(intrinsic_mat, normalised_img_coord)
 
-        for e in extrinsic_mat_all:
-            projected = np.dot(self.intrinsic_mat, np.dot(e, world_coord.T))
-            projected_img_coord.append(projected)
+        # converting back to non-homogenous form
+        normalised_img_coord = img_utils.get_non_homogenuous(normalised_img_coord.T)
+        projected_img_coord = img_utils.get_non_homogenuous(projected_img_coord.T)
 
-        return projected_img_coord
+        return projected_img_coord, normalised_img_coord
+
+
+    # get_projection_error(world_coord, intrinsic_mat, extrinsic_mat_all, img_coord_all):
+
+
+    def flatten_ak(self, a, k):
+        x0 = np.array([a[0][0], a[0][1], a[0][2],
+                       a[1][1], a[1][2], k[0][0], k[1][0]])
+        return x0
+
+
+    def un_flatten_ak(self, x):
+        k = np.array([[x[5]], [x[6]]])
+        a = np.array(
+            [[x[0], x[1], x[2]], [0, x[3], x[4]], [0, 0, 1]])
+        a = a.reshape((3, 3))
+        return a, k

@@ -28,6 +28,13 @@ class ImgUtils:
         return hom_points
 
 
+    def get_non_homogenuous(self, points):
+        points[:, 0] = points[:, 0]/points[:, 2]
+        points[:, 1] = points[:, 1]/points[:, 2]
+
+        return points[:, 0:2]
+
+
     def get_images(self, path):
         filesnames = glob.glob(path+'*.jpg')
         filesnames.sort(key=lambda f: int(filter(str.isdigit, f)))
@@ -45,6 +52,6 @@ class ImgUtils:
     def plot_points(self, img, points, color):
 
         for c in points:
-            img = cv2.circle(img, (c[0], c[1]), 10, color, -1)
+            img = cv2.circle(img, (c[0], c[1]), 10, color, 3)
 
         return img
