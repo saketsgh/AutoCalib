@@ -3,21 +3,19 @@ import os
 import numpy as np
 from image_utils import ImgUtils
 
-
-debug = False
+img_utils = ImgUtils()
 
 class CalibUtils:
 
     def __init__(self):
         self.intrinsic_mat = np.zeros((3, 3)).astype(np.float32)
-        # self.extrinsic_mat_all = np.zeros((None, 3, 4)).astype(np.float32)
+        self.h_init = None
 
 
     def get_corner_pts(self, calib_images, grid_size):
 
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         corners_all_imgs = []
-
         if not os.path.exists("results/"):
             os.makedirs("results/")
 
@@ -27,10 +25,10 @@ class CalibUtils:
 
             if(ret==True):
                 corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
-                img = cv2.drawChessboardCorners(img, grid_size, corners2, ret)
                 corners2 = corners2.reshape((corners.shape[0], -1))
-                # self.show_image(img, "corners", save=True)
-                # cv2.imwrite("results/corners_img_"+str(i)+".png", img)
+                # uncomment to get results
+                '''img = plot_points(self, img, corners2, color=(255, 0, 0))
+                cv2.imwrite("results/corners_img_"+str(i)+".png", img)'''
                 corners_all_imgs.append(corners2)
 
         return corners_all_imgs
@@ -39,7 +37,7 @@ class CalibUtils:
     def get_homography(self, img, img_corners, world_coord):
 
         img_coord = []
-        img_utils = ImgUtils()
+        # img_utils = ImgUtils()
 
         # choosing four points for finding homography
         img_coord.append(img_corners[0])
@@ -51,9 +49,11 @@ class CalibUtils:
 
         homography = cv2.getPerspectiveTransform(world_coord, img_coord)
 
+        show_4_corners = False
+
         # to show which points where chosen
-        if(debug):
-            for c in img_coord:
+        if(show_4_corners):
+            for i, c in enumerate(img_coord):
 
                 # font
                 font = cv2.FONT_HERSHEY_SIMPLEX
@@ -61,6 +61,7 @@ class CalibUtils:
                 # org
                 org = (c[0],c[1])
 
+                text = str(org)+'('+ str(i) + ')'
                 # fontScale
                 fontScale = 1
 
@@ -69,7 +70,7 @@ class CalibUtils:
 
                 # Line thickness of 2 px
                 thickness = 2
-                img = cv2.putText(img, str(org), org, font,
+                img = cv2.putText(img, text, org, font,
                                    fontScale, color, thickness, cv2.LINE_AA)
 
             img_utils.show_image(img, "coord", resize=True)
@@ -90,9 +91,11 @@ class CalibUtils:
         return v_pq
 
 
-    def compute_intrinsic_params(self, h_init):
+    def get_camera_matrix(self, h_init):
 
         v_mat = []
+        self.h_init = h_init
+
         for h in h_init:
             v01_h = self.v_pq_h(h, 0, 1)
             v00_h = self.v_pq_h(h, 0, 0)
@@ -121,11 +124,13 @@ class CalibUtils:
         # calculating intrinsic camera matrix or A matrix
         self.intrinsic_mat = np.array([[alpha, -1*gamma, uc], [0, beta, vc], [0, 0, 1]])
 
+        return self.intrinsic_mat
 
 
-    def compute_extrinsic_params(self, h_init):
+    def compute_extrinsic_params(self):
 
         # calculating extrinsic parameters
+        h_init = self.h_init
         a_inv = np.linalg.pinv(self.intrinsic_mat)
         extrinsic_mat_all = []
 
@@ -154,11 +159,24 @@ class CalibUtils:
             extrinsic_mat = np.hstack((r, t))
             extrinsic_mat_all.append(extrinsic_mat)
 
-        # self.extrinsic_mat_all = np.array(extrinsic_mat_all)
+        return extrinsic_mat_all
 
 
+    def get_projected_img_coord(self, world_coord):
 
-    def get_camera_matrix(self, h_init):
-        self.compute_intrinsic_params(h_init)
-        self.compute_extrinsic_params(h_init)
-        return self.intrinsic_mat
+        # obtain the extrinsic parameters first
+        extrinsic_mat_all = self.compute_extrinsic_params()
+
+        # convert the world coord to 3D homogenuous with Z=0
+        zeros = np.zeros((world_coord.shape[0], 1))
+        world_coord = np.hstack((world_coord, zeros))
+        world_coord = img_utils.get_homogenuous(world_coord)
+
+        # compute projected image coord
+        projected_img_coord = []
+
+        for e in extrinsic_mat_all:
+            projected = np.dot(self.intrinsic_mat, np.dot(e, world_coord.T))
+            projected_img_coord.append(projected)
+
+        return projected_img_coord

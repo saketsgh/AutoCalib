@@ -5,7 +5,7 @@ import os
 
 class ImgUtils:
 
-    def show_image(self, img, title="FaceSwap", resize=False, save=False):
+    def show_image(self, img, title="image", resize=False, save=False):
         if(resize):
             cv2.namedWindow(title, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(title, (img.shape[0]/2, img.shape[0]/2))
@@ -40,3 +40,11 @@ class ImgUtils:
     	    calib_images.append(img)
 
         return calib_images
+
+
+    def plot_points(self, img, points, color):
+
+        for c in points:
+            img = cv2.circle(img, (c[0], c[1]), 10, color, -1)
+
+        return img

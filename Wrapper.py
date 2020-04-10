@@ -38,8 +38,12 @@ class CalibrateCamera:
         calib_utils = CalibUtils()
 
         ### define world coordinates of target image and scale them
-        world_coord = np.array([[1, 6], [1, 1], [6, 6], [6, 1]]).astype(np.float32)
-        world_coord *= self.length
+        world_coord_four = np.array([[1, 6], [1, 1], [6, 6], [6, 1]]).astype(np.float32)
+        world_coord_all = np.zeros(((self.rows-1)*(self.cols-1), 2), np.float32)
+        world_coord_all = np.mgrid[1:self.cols , 1:self.rows].T.reshape(-1, 2)
+
+        world_coord_all = self.length*world_coord_all
+        world_coord_four = self.length*world_coord_four
 
         ### get the calibration images
         calib_images = img_utils.get_images(self.path)
@@ -48,21 +52,36 @@ class CalibrateCamera:
         ### find corners for all the input images
         grid_size = (self.rows-1, self.cols-1)
         corners_all_imgs = calib_utils.get_corner_pts(calib_images, grid_size)
+        corners_all_imgs = np.array(corners_all_imgs)
 
         # for each img obtain homography and store them
         h_init = []
         for img, corners in zip(calib_images, corners_all_imgs):
-            homography = calib_utils.get_homography(img, corners, world_coord)
+            homography = calib_utils.get_homography(img, corners, world_coord_four)
             h_init.append(homography)
 
         # obtain the intrinsic camera parameters (alpha, beta, gamma, uc, vc)
         self.camera_matrix = calib_utils.get_camera_matrix(h_init)
-        print(self.camera_matrix)
+        # print(self.camera_matrix)
 
-        # obtain the extrinsic parameters i.e. (px, py, pz, tx, ty, tz)
+        # calculate projected points using the equation u = HX where X are world_coord
+        # and u is the corresponding image coordinates
+        projected_img_coord = calib_utils.get_projected_img_coord(world_coord_all)
+
+        # plot
+        for p, img in zip(projected_img_coord, calib_images):
+            # convert back to cartesian
+            p = p.T
+            p[:, 0] = p[:, 0]/p[:, 2]
+            p[:, 1] = p[:, 1]/p[:, 2]
+
+            img2 = img_utils.plot_points(img, p.astype(np.float32), color=(0, 0, 255))
+            img_utils.show_image(img2, "img", resize=True)
 
     # def rectify_params(self):
 
+
+def optimize_params(world_coord_all, ):
 
 
 def main():
