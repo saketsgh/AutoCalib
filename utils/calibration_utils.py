@@ -182,7 +182,47 @@ class CalibUtils:
         return projected_img_coord, normalised_img_coord
 
 
-    # get_projection_error(world_coord, intrinsic_mat, extrinsic_mat_all, img_coord_all):
+    def get_projection_error(self, world_coord, intrinsic_mat, extrinsic_mat_all, k_mat, img_coord_all, save_image=False):
+
+        i = 0
+        rectified_imgs = img_utils.get_images("../References/AutoCalib/rectified_imgs/")
+        error_all_imgs = np.array([])
+        # obtain the coordinates of image center
+        uc = intrinsic_mat[0][2]
+        vc = intrinsic_mat[1][2]
+
+        for extrinsic_mat, img_coord in zip(extrinsic_mat_all, img_coord_all):
+
+            U, X = self.get_projected_img_coord(world_coord, intrinsic_mat, extrinsic_mat)
+
+            u = U[:, 0].reshape((X.shape[0], 1))
+            v = U[:, 1].reshape((X.shape[0], 1))
+            x = X[:, 0].reshape((X.shape[0], 1))
+            y = X[:, 1].reshape((X.shape[0], 1))
+
+            x_y = (x**2) + (y**2)
+            lens_dist = k_mat[0][0]*(x_y) + k_mat[1][0]*(x_y**2)
+
+            # projected image coordinates with distortion
+            u_h = u + np.multiply((u-uc), lens_dist)
+            v_h = v + np.multiply((v-vc), lens_dist)
+
+            # observed image coordinates
+            u_img = img_coord[:, 0].reshape((X.shape[0], 1))
+            v_img = img_coord[:, 1].reshape((X.shape[0], 1))
+
+            # for saving projected points
+            if(save_image):
+                img = img_utils.plot_points(rectified_imgs[i], img_coord.astype(np.float32), color=(0, 0, 0))
+                img = img_utils.plot_points(img, U.astype(np.float32), color=(0, 0, 255))
+                img_utils.save_image(img, path="../References/AutoCalib/reprojected_pts/", title="img"+str(i))
+
+            # l2 norm or sum of squared diff
+            error_all_pts = (u_img-u_h)**2 + (v_img-v_h)**2
+            error_all_imgs = np.append(error_all_imgs, np.sqrt(error_all_pts))
+            i += 1
+
+        return error_all_imgs
 
 
     def flatten_ak(self, a, k):
@@ -191,7 +231,7 @@ class CalibUtils:
         return x0
 
 
-    def un_flatten_ak(self, x):
+    def unflatten_ak(self, x):
         k = np.array([[x[5]], [x[6]]])
         a = np.array(
             [[x[0], x[1], x[2]], [0, x[3], x[4]], [0, 0, 1]])

@@ -15,6 +15,12 @@ class ImgUtils:
         if(save):
             cv2.imwrite(title+".png", img)
 
+    def save_image(self, img, path, title):
+        if not os.path.exists(path):
+            print("jajsajjda")
+            os.makedirs(path)
+        cv2.imwrite(path+title+".jpg", img)
+
 
     def get_homogenuous(self, points):
         # for row vectors

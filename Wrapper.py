@@ -60,6 +60,26 @@ class CalibrateCamera:
         return intrinsic_mat, extrinsic_mat_all, world_coord_all, corners_all_imgs
 
 
+    def rectification(self, intrinsic_mat_final, k_final, extrinsic_mat_all, world_coord):
+
+        img_utils = ImgUtils()
+        calib_utils = CalibUtils()
+
+        calib_images = img_utils.get_images(self.path)
+        for i, img in enumerate(calib_images):
+            distortion_params = np.array([k_final[0][0], k_final[1][0], 0, 0])
+            rectified_img = cv2.undistort(img, intrinsic_mat_final, distortion_params)
+            # img_utils.save_image(rectified_img, "../References/AutoCalib/rectified_imgs/", "img"+str(i))
+
+        grid_size = (self.rows-1, self.cols-1)
+        rectified_imgs = img_utils.get_images("../References/AutoCalib/rectified_imgs/")
+        img_coord_all = calib_utils.get_corner_pts(rectified_imgs, grid_size)
+        error_all_imgs = calib_utils.get_projection_error(world_coord, intrinsic_mat_final, extrinsic_mat_all, k_final, img_coord_all, save_image=False)
+
+        # mean error
+        mean_error = np.sum(error_all_imgs)/error_all_imgs.shape[0]
+
+        return mean_error
 
 def optimize_params(x0, extrinsic_mat_all, world_coord, img_coord_all):
 
@@ -67,50 +87,10 @@ def optimize_params(x0, extrinsic_mat_all, world_coord, img_coord_all):
     img_utils = ImgUtils()
 
     # recover intrinsic matrix and lens distortion parameters
-    intrinsic_mat, k_mat = calib_utils.un_flatten_ak(x0)
+    intrinsic_mat, k_mat = calib_utils.unflatten_ak(x0)
 
     # calculate error over all the points in all the images
-    error_all_imgs = 0
-
-    # obtain the coordinates of image center
-    uc = intrinsic_mat[0][2]
-    vc = intrinsic_mat[1][2]
-
-    calib_images = img_utils.get_images("../References/AutoCalib/Calibration_Imgs/")
-    error_all_imgs = np.array([])
-
-    # error_all_imgs = calib_utils.get_projection_error(world_coord, intrinsic_mat, extrinsic_mat_all, img_coord_all)
-    i = 0
-    for extrinsic_mat, img_coord in zip(extrinsic_mat_all, img_coord_all):
-
-        U, X = calib_utils.get_projected_img_coord(world_coord, intrinsic_mat, extrinsic_mat)
-
-        u = U[:, 0].reshape((X.shape[0], 1))
-        v = U[:, 1].reshape((X.shape[0], 1))
-        x = X[:, 0].reshape((X.shape[0], 1))
-        y = X[:, 1].reshape((X.shape[0], 1))
-
-        x_y = (x**2) + (y**2)
-        lens_dist = k_mat[0][0]*(x_y) + k_mat[1][0]*(x_y**2)
-
-        # projected image coordinates with distortion
-        u_h = u + np.multiply((u-uc), lens_dist)
-        v_h = v + np.multiply((v-vc), lens_dist)
-
-        # observed image coordinates
-        u_img = img_coord[:, 0].reshape((X.shape[0], 1))
-        v_img = img_coord[:, 1].reshape((X.shape[0], 1))
-
-        # for debuging projected points
-        # img = img_utils.plot_points(calib_images[i], img_coord.astype(np.float32), color=(0, 0, 0))
-        # img = img_utils.plot_points(img, U.astype(np.float32), color=(0, 0, 255))
-        # img_utils.show_image(img, "img", resize=True)
-
-        # l2 norm or sum of squared diff
-        error_all_pts = (u_img-u_h)**2 + (v_img-v_h)**2
-        # error_all_pts = np.sum(error_all_pts, axis=0)
-        error_all_imgs = np.append(error_all_imgs, error_all_pts)
-        i += 1
+    error_all_imgs = calib_utils.get_projection_error(world_coord, intrinsic_mat, extrinsic_mat_all, k_mat, img_coord_all)
 
     return error_all_imgs
 
@@ -141,12 +121,19 @@ def main():
     # param to optimize
     x0 = calib_utils.flatten_ak(intrinsic_mat_init, k_init)
 
-    # optimize_params(x0, extrinsic_mat_all, world_coord, img_coord_all)
-
+    # perform optimization using least squares
     result = optimize.least_squares(fun=optimize_params, x0=x0, method="lm", args=[extrinsic_mat_all, world_coord, img_coord_all])
-    x0_opt = result
-    print(x0_opt)
+    x0_opt = result.x
+
+    intrinsic_mat_final, k_final = calib_utils.unflatten_ak(x0_opt)
+    
+    # intrinsic_mat_final = np.array( [[2.03595682e+03, -6.86250309e-01,  7.57676183e+02], [0, 2.02488005e+03, 1.37723324e+03], [0, 0, 1]])
+    # k_final = np.array([[8.73214824e-02], [-6.40628478e-01]])
+
+    # undistort the image and save them
+    mean_reprojection_error = calibrate.rectification(intrinsic_mat_final, k_final, extrinsic_mat_all, world_coord)
 
 
+    print(mean_reprojection_error)
 if __name__ == '__main__':
     main()
