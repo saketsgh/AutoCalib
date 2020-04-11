@@ -12,8 +12,8 @@ class CalibUtils:
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         corners_all_imgs = []
 
-        if not os.path.exists("results/"):
-            os.makedirs("results/")
+        # if not os.path.exists("results/"):
+        #     os.makedirs("results/")
 
         for i, img in enumerate(calib_images):
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -162,6 +162,10 @@ class CalibUtils:
         extrinsic_mat_all = self.compute_extrinsic_params(intrinsic_mat, h_init)
 
         return intrinsic_mat, extrinsic_mat_all
+
+    def get_new_extrinsic(self, intrinsic_mat_final, h_final):
+        extrinsic_mat_final = self.compute_extrinsic_params(intrinsic_mat_final, h_final)
+        return extrinsic_mat_final
 
 
     def get_projected_img_coord(self, world_coord, intrinsic_mat, extrinsic_mat):
