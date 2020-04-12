@@ -13,11 +13,10 @@ class ImgUtils:
         cv2.waitKey(0)
         cv2.destroyWindow(title)
         if(save):
-            cv2.imwrite(title+".png", img)
+            cv2.imwrite(title+".jpg", img)
 
     def save_image(self, img, path, title):
         if not os.path.exists(path):
-            print("jajsajjda")
             os.makedirs(path)
         cv2.imwrite(path+title+".jpg", img)
 

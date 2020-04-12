@@ -44,7 +44,7 @@ class CalibrateCamera:
 
         ### find corners for all the input images
         grid_size = (self.rows-1, self.cols-1)
-        corners_all_imgs = calib_utils.get_corner_pts(calib_images, grid_size)
+        corners_all_imgs = calib_utils.get_corner_pts(calib_images, grid_size, save_image=True)
         print("found Chessboard Corners...")
 
         # for each img obtain homography and store them
@@ -73,10 +73,10 @@ class CalibrateCamera:
         for i, img in enumerate(calib_images):
             distortion_params = np.array([k_final[0][0], k_final[1][0], 0, 0])
             rectified_img = cv2.undistort(img, intrinsic_mat_final, distortion_params)
-            img_utils.save_image(rectified_img, "../References/AutoCalib/rectified_imgs/", "img"+str(i))
+            img_utils.save_image(rectified_img, "results/rectified_imgs/", "img"+str(i))
 
         grid_size = (self.rows-1, self.cols-1)
-        rectified_imgs = img_utils.get_images("../References/AutoCalib/rectified_imgs/")
+        rectified_imgs = img_utils.get_images("results/rectified_imgs/")
         img_coord_all = calib_utils.get_corner_pts(rectified_imgs, grid_size)
 
         h_final = []
@@ -142,18 +142,22 @@ def main():
     x0_opt = result.x
 
     intrinsic_mat_final, k_final = calib_utils.unflatten_ak(x0_opt)
+    # intrinsic_mat_final = np.array( [[2.03371233e+03, -2.21824766e-01, 7.57693564e+02],
+                                    # [ 0.00000000e+00, 2.02204892e+03, 1.37725480e+03],
+                                    # [ 0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+    # k_final = np.array([[ 0.08771432],
+                        # [-0.6170109 ]])
     print("\nfinal intrinsic camera matrix and lens distortion matrix -->")
     print(intrinsic_mat_final)
     print("\n")
     print(k_final)
-    # intrinsic_mat_final = np.array( [[2.03595682e+03, -6.86250309e-01,  7.57676183e+02], [0, 2.02488005e+03, 1.37723324e+03], [0, 0, 1]])
-    # k_final = np.array([[8.73214824e-02], [-6.40628478e-01]])
+
 
     # undistort the image and save them
     mean_reprojection_error = calibrate.rectification(intrinsic_mat_final, k_final, world_coord)
     print("\nmean re-projection error --> ")
     print(mean_reprojection_error)
 
-    
+
 if __name__ == '__main__':
     main()

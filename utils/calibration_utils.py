@@ -2,18 +2,20 @@ import cv2
 import os
 import numpy as np
 from image_utils import ImgUtils
-
+import copy
 img_utils = ImgUtils()
+
+show_4_corners = False
 
 class CalibUtils:
 
-    def get_corner_pts(self, calib_images, grid_size):
+    def get_corner_pts(self, calib_images, grid_size, save_image=False):
 
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         corners_all_imgs = []
 
-        # if not os.path.exists("results/"):
-        #     os.makedirs("results/")
+        if not os.path.exists("results/"):
+            os.makedirs("results/")
 
         for i, img in enumerate(calib_images):
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -23,8 +25,9 @@ class CalibUtils:
                 corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
                 corners2 = corners2.reshape((corners.shape[0], -1))
                 # uncomment to get results
-                '''img = plot_points(self, img, corners2, color=(255, 0, 0))
-                cv2.imwrite("results/world_points/corners_img_"+str(i)+".png", img)'''
+                if(save_image):
+                    img = img_utils.plot_points(img, corners2, color=(0, 0, 0))
+                    img_utils.save_image(img, path="results/world_points/", title="corners_img_"+str(i))
                 corners_all_imgs.append(corners2)
 
         return corners_all_imgs
@@ -45,8 +48,6 @@ class CalibUtils:
 
         homography = cv2.getPerspectiveTransform(world_coord, img_coord)
 
-        show_4_corners = False
-
         # to show which points where chosen
         if(show_4_corners):
             for i, c in enumerate(img_coord):
@@ -62,14 +63,15 @@ class CalibUtils:
                 fontScale = 1
 
                 # Blue color in BGR
-                color = (0, 0, 0)
+                color = (255, 0, 0)
 
                 # Line thickness of 2 px
                 thickness = 2
-                img = cv2.putText(img, text, org, font,
-                                   fontScale, color, thickness, cv2.LINE_AA)
+                img = img_utils.plot_points(img, [org], color=(0, 255, 255))
+                '''img = cv2.putText(img, text, org, font,
+                                   fontScale, color, thickness, cv2.LINE_AA)'''
 
-            img_utils.show_image(img, "coord", resize=True)
+            img_utils.show_image(img, "coord", resize=True, save=True)
 
         return homography
 
@@ -189,7 +191,7 @@ class CalibUtils:
     def get_projection_error(self, world_coord, intrinsic_mat, extrinsic_mat_all, k_mat, img_coord_all, save_image=False):
 
         i = 0
-        rectified_imgs = img_utils.get_images("../References/AutoCalib/rectified_imgs/")
+        rectified_imgs = img_utils.get_images("results/rectified_imgs/")
         error_all_imgs = np.array([])
         # obtain the coordinates of image center
         uc = intrinsic_mat[0][2]
@@ -219,7 +221,7 @@ class CalibUtils:
             if(save_image):
                 img = img_utils.plot_points(rectified_imgs[i], img_coord.astype(np.float32), color=(0, 0, 0))
                 img = img_utils.plot_points(img, U.astype(np.float32), color=(0, 0, 255))
-                img_utils.save_image(img, path="../References/AutoCalib/reprojected_pts/", title="img"+str(i))
+                img_utils.save_image(img, path="results/reprojected_pts/", title="img"+str(i))
 
             # l2 norm or sum of squared diff
             error_all_pts = (u_img-u_h)**2 + (v_img-v_h)**2
