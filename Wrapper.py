@@ -140,7 +140,7 @@ def main():
     print("\nperforming optimisation using parameters obtained...")
     result = optimize.least_squares(fun=optimize_params, x0=x0, method="lm", args=[extrinsic_mat_all, world_coord, img_coord_all])
     x0_opt = result.x
-
+    # print(result)
     intrinsic_mat_final, k_final = calib_utils.unflatten_ak(x0_opt)
     # intrinsic_mat_final = np.array( [[2.03371233e+03, -2.21824766e-01, 7.57693564e+02],
                                     # [ 0.00000000e+00, 2.02204892e+03, 1.37725480e+03],
